@@ -207,7 +207,6 @@ Nếu bạn gặp vấn đề hoặc muốn đề xuất tính năng mới, vui 
 ## 📞 Liên hệ
 
 - **Project Link**: [https://github.com/duclee204/CMC-Learm](https://github.com/duclee204/CMC-Learm)
-- **Email**: duclee204@example.com
 
 ## 🙏 Acknowledgments
 
