@@ -206,7 +206,7 @@ Nếu bạn gặp vấn đề hoặc muốn đề xuất tính năng mới, vui 
 
 ## 📞 Liên hệ
 
-- **Project Link**: [https://github.com/duclee204/CMC-Learm](https://github.com/duclee204/CMC-Learm)
+- **Project Link**: [https://github.com/duclee204/CMC-Learn](https://github.com/duclee204/CMC-Learn)
 
 ## 🙏 Acknowledgments
 
