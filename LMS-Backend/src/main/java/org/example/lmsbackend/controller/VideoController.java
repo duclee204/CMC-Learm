@@ -6,7 +6,6 @@ import org.example.lmsbackend.service.VideoService;
 import org.example.lmsbackend.service.CourseService;
 import org.example.lmsbackend.service.EnrollmentsService;
 import org.example.lmsbackend.security.CustomUserDetails;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -22,18 +21,22 @@ import java.util.List;
 @RequestMapping("/api/videos")
 public class VideoController {
 
-    @Autowired
-    private VideoService videoService;
-    @Autowired
-    private CourseService courseService;
-    @Autowired
-    private EnrollmentsService enrollmentsService;
+    private final VideoService videoService;
+    private final CourseService courseService;
+    private final EnrollmentsService enrollmentsService;
 
+    public VideoController(VideoService videoService,
+                           CourseService courseService,
+                           EnrollmentsService enrollmentsService) {
+        this.videoService = videoService;
+        this.courseService = courseService;
+        this.enrollmentsService = enrollmentsService;
+    }
     // Lấy danh sách video theo khóa học - có phân quyền
     @GetMapping("/course/{courseId}")
     @PreAuthorize("hasAnyRole('admin', 'instructor', 'student')")
     public ResponseEntity<List<VideoDTO>> getVideosByCourse(@PathVariable Integer courseId,
-                                                           @AuthenticationPrincipal CustomUserDetails userDetails) {
+                                                            @AuthenticationPrincipal CustomUserDetails userDetails) {
         // Kiểm tra quyền truy cập khóa học
         if (userDetails.hasRole("instructor")) {
             if (!courseService.isInstructorOfCourse(userDetails.getUserId(), courseId)) {
@@ -45,7 +48,7 @@ public class VideoController {
                 return ResponseEntity.status(403).build();
             }
         }
-        
+
         List<VideoDTO> videos = videoService.getVideosByCourse(courseId);
         return ResponseEntity.ok(videos);
     }
@@ -54,15 +57,15 @@ public class VideoController {
     @PostMapping("/upload")
     @PreAuthorize("hasRole('instructor')")
     public ResponseEntity<VideoDTO> uploadVideo(@RequestParam("file") MultipartFile file,
-                                              @RequestParam("title") String title,
-                                              @RequestParam("description") String description,
-                                              @RequestParam("courseId") Integer courseId,
-                                              @AuthenticationPrincipal CustomUserDetails userDetails) {
+                                                @RequestParam("title") String title,
+                                                @RequestParam("description") String description,
+                                                @RequestParam("courseId") Integer courseId,
+                                                @AuthenticationPrincipal CustomUserDetails userDetails) {
         // Kiểm tra giảng viên có dạy khóa này không
         if (!courseService.isInstructorOfCourse(userDetails.getUserId(), courseId)) {
             return ResponseEntity.status(403).build();
         }
-        
+
         VideoDTO videoDTO = videoService.uploadVideo(file, title, description, courseId, userDetails.getUserId());
         if (videoDTO == null) {
             return ResponseEntity.badRequest().build();
@@ -74,9 +77,9 @@ public class VideoController {
     @GetMapping("/stream/{videoId}")
     @PreAuthorize("hasAnyRole('admin', 'instructor', 'student')")
     public ResponseEntity<Resource> streamVideo(@PathVariable Long videoId,
-                                              @AuthenticationPrincipal CustomUserDetails userDetails) {
+                                                @AuthenticationPrincipal CustomUserDetails userDetails) {
         System.out.println("🎥 Stream request: videoId=" + videoId + ", userId=" + userDetails.getUserId() + ", role=" + userDetails.getAuthorities());
-        
+
         // Admin có quyền xem tất cả video
         if (userDetails.hasRole("admin")) {
             System.out.println("✅ Admin access granted for video " + videoId);
@@ -90,12 +93,12 @@ public class VideoController {
             System.out.println("❌ Student access denied for video " + videoId);
             return ResponseEntity.status(403).build();
         }
-        
+
         Resource videoResource = videoService.getVideoResource(videoId);
         if (videoResource == null) {
             return ResponseEntity.notFound().build();
         }
-        
+
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_OCTET_STREAM)
                 .body(videoResource);
@@ -104,13 +107,13 @@ public class VideoController {
     // Xem chi tiết video - có phân quyền
     @GetMapping("/{videoId}")
     @PreAuthorize("hasAnyRole('admin', 'instructor', 'student')")
-    public ResponseEntity<VideoDTO> getVideoById(@PathVariable Long videoId, 
-                                                @AuthenticationPrincipal CustomUserDetails userDetails) {
+    public ResponseEntity<VideoDTO> getVideoById(@PathVariable Long videoId,
+                                                 @AuthenticationPrincipal CustomUserDetails userDetails) {
         VideoDTO video = videoService.getVideoById(videoId);
         if (video == null) {
             return ResponseEntity.notFound().build();
         }
-        
+
         // Admin có quyền xem tất cả video
         if (userDetails.hasRole("admin")) {
             System.out.println("✅ Admin access granted for video details " + videoId);
@@ -122,21 +125,21 @@ public class VideoController {
         else if (userDetails.hasRole("student") && !videoService.canStudentAccessVideo(videoId, userDetails.getUserId())) {
             return ResponseEntity.status(403).build();
         }
-        
+
         return ResponseEntity.ok(video);
     }
 
     // Cập nhật video - chỉ instructor của video
     @PutMapping("/{videoId}")
     @PreAuthorize("hasRole('instructor')")
-    public ResponseEntity<String> updateVideo(@PathVariable Long videoId, 
-                                            @RequestBody Video video, 
-                                            @AuthenticationPrincipal CustomUserDetails userDetails) {
+    public ResponseEntity<String> updateVideo(@PathVariable Long videoId,
+                                              @RequestBody Video video,
+                                              @AuthenticationPrincipal CustomUserDetails userDetails) {
         // Kiểm tra instructor có quyền sửa video này không
         if (!videoService.isInstructorOfVideo(videoId, userDetails.getUserId())) {
             return ResponseEntity.status(403).body("Bạn không có quyền sửa video này");
         }
-        
+
         video.setVideoId(videoId);
         int updated = videoService.updateVideo(video);
         return updated > 0 ? ResponseEntity.ok("Video updated successfully")
@@ -147,12 +150,12 @@ public class VideoController {
     @DeleteMapping("/{videoId}")
     @PreAuthorize("hasRole('instructor')")
     public ResponseEntity<String> deleteVideo(@PathVariable Long videoId,
-                                            @AuthenticationPrincipal CustomUserDetails userDetails) {
+                                              @AuthenticationPrincipal CustomUserDetails userDetails) {
         // Chỉ giảng viên của video mới được xóa
         if (!videoService.isInstructorOfVideo(videoId, userDetails.getUserId())) {
             return ResponseEntity.status(403).body("Bạn không có quyền xóa video này");
         }
-        
+
         int deleted = videoService.deleteVideo(videoId);
         return deleted > 0 ? ResponseEntity.ok("Video deleted successfully") : ResponseEntity.notFound().build();
     }
@@ -162,4 +165,3 @@ public class VideoController {
     public ResponseEntity<List<VideoDTO>> getAllVideos(@RequestParam(required = false) String title) {
         return ResponseEntity.ok(videoService.getAllVideos(title));
     }
-}

@@ -61,23 +61,23 @@ public class VideoService {
         try {
             String fileUrl = saveFile(file);
             if (fileUrl == null) return null;
-            
+
             Video video = new Video();
             video.setTitle(title);
             video.setDescription(description);
             video.setFileUrl(fileUrl);
             video.setFileSize(file.getSize());
             video.setMimeType(file.getContentType());
-            
+
             // Set course và instructor
             Course course = new Course();
             course.setCourseId(courseId);
             video.setCourse(course);
-            
+
             User instructor = new User();
             instructor.setUserId(instructorId);
             video.setInstructor(instructor);
-            
+
             videoMapper.insertVideo(video);
             return VideoMapperUtil.toDTO(video);
         } catch (Exception e) {
@@ -108,30 +108,30 @@ public class VideoService {
                 System.out.println("❌ Video not found in DB: " + videoId);
                 return null;
             }
-            
+
             System.out.println("🎬 Video from DB: id=" + video.getVideoId() + ", fileUrl=" + video.getFileUrl());
-            
+
             if (video.getFileUrl() == null) {
                 System.out.println("❌ FileUrl is null for video: " + videoId);
                 return null;
             }
-            
+
             // video.getFileUrl() = "/videos/filename.mp4"
             // Extract just the filename from the fileUrl
             String fileName = video.getFileUrl().substring(video.getFileUrl().lastIndexOf("/") + 1);
-            
+
             // Construct correct path: uploads/videos/filename.mp4
             Path filePath = Paths.get("uploads/videos/" + fileName);
             System.out.println("🎯 Looking for file at: " + filePath.toAbsolutePath());
-            
+
             if (!Files.exists(filePath)) {
                 System.out.println("❌ File does not exist at: " + filePath.toAbsolutePath());
                 return null;
             }
-            
+
             System.out.println("✅ File found, creating resource");
             Resource resource = new UrlResource(filePath.toUri());
-            
+
             if (resource.exists() && resource.isReadable()) {
                 System.out.println("✅ Resource is readable");
                 return resource;
@@ -150,14 +150,14 @@ public class VideoService {
         try {
             String fileName = UUID.randomUUID().toString() + "_" + file.getOriginalFilename();
             Path uploadPath = Paths.get("uploads/videos");
-            
+
             if (!Files.exists(uploadPath)) {
                 Files.createDirectories(uploadPath);
             }
-            
+
             Path filePath = uploadPath.resolve(fileName);
             Files.copy(file.getInputStream(), filePath);
-            
+
             return "/videos/" + fileName;
         } catch (IOException e) {
             e.printStackTrace();

@@ -1,10 +1,11 @@
 package org.example.lmsbackend.controller;
 
-import org.example.lmsbackend.model.Course;
 import org.example.lmsbackend.dto.CourseDTO;
-import org.example.lmsbackend.service.CourseService;
+import org.example.lmsbackend.dto.EnrollmentsDTO;
+import org.example.lmsbackend.model.Course;
 import org.example.lmsbackend.security.CustomUserDetails;
-import org.springframework.beans.factory.annotation.Autowired;
+import org.example.lmsbackend.service.CourseService;
+import org.example.lmsbackend.service.EnrollmentsService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
@@ -13,31 +14,55 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.util.List;
-import java.util.Map;
-import java.util.Optional;
-
+import java.util.*;
 @RestController
 @RequestMapping("/api/courses")
 public class CourseRestController {
-    @Autowired
-    private org.example.lmsbackend.service.EnrollmentsService enrollmentsService;
 
-    // API mới: trả về tất cả khóa học kèm trạng thái đã đăng ký
+    private static final String ROLE_ADMIN = "admin";
+    private static final String ROLE_INSTRUCTOR = "instructor";
+    private static final String ROLE_STUDENT = "student";
+
+    private final CourseService courseService;
+    private final EnrollmentsService enrollmentsService;
+
+    public CourseRestController(CourseService courseService, EnrollmentsService enrollmentsService) {
+        this.courseService = courseService;
+        this.enrollmentsService = enrollmentsService;
+    }
+
+    private CustomUserDetails getCurrentUser() {
+        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        if (principal instanceof CustomUserDetails) {
+            return (CustomUserDetails) principal;
+        }
+        return null;
+    }
+
+    private boolean canAccessCourse(CustomUserDetails user, Course course) {
+        if (user.hasRole(ROLE_ADMIN)) return true;
+        if (user.hasRole(ROLE_INSTRUCTOR) && course.getInstructorId().equals(user.getId())) return true;
+        if (user.hasRole(ROLE_STUDENT)) {
+            // TODO: kiểm tra user đã đăng ký khóa học hay chưa
+            return true;
+        }
+        return false;
+    }
+
     @GetMapping("/all-with-status")
     @PreAuthorize("hasRole('student') or hasRole('admin') or hasRole('instructor')")
     public ResponseEntity<List<Map<String, Object>>> getAllCoursesWithStatus(@RequestParam int userId) {
         List<Course> allCourses = courseService.getCourses(null, null, null);
-        // Lấy danh sách ID khóa học đã đăng ký
-        List<org.example.lmsbackend.dto.EnrollmentsDTO> enrolled = enrollmentsService.getEnrolledCourses(userId);
-        List<Integer> enrolledCourseIds = new java.util.ArrayList<>();
-        for (org.example.lmsbackend.dto.EnrollmentsDTO dto : enrolled) {
+        List<EnrollmentsDTO> enrolled = enrollmentsService.getEnrolledCourses(userId);
+
+        Set<Integer> enrolledCourseIds = new HashSet<>();
+        for (EnrollmentsDTO dto : enrolled) {
             enrolledCourseIds.add(dto.getCourseId());
         }
 
-        List<Map<String, Object>> result = new java.util.ArrayList<>();
+        List<Map<String, Object>> result = new ArrayList<>();
         for (Course course : allCourses) {
-            Map<String, Object> item = new java.util.HashMap<>();
+            Map<String, Object> item = new HashMap<>();
             item.put("courseId", course.getCourseId());
             item.put("title", course.getTitle());
             item.put("description", course.getDescription());
@@ -49,16 +74,11 @@ public class CourseRestController {
         return ResponseEntity.ok(result);
     }
 
-    @Autowired
-    private CourseService courseService;
     @PostMapping(value = "/create", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @PreAuthorize("hasRole('admin')")
     public ResponseEntity<?> createCourse(
             @RequestPart("course") CourseDTO courseDTO,
             @RequestPart("image") MultipartFile imageFile) {
-
-        System.out.println("📥 Received courseDTO: " + courseDTO);
-        System.out.println("📷 Received file: " + imageFile.getOriginalFilename());
 
         try {
             boolean created = courseService.createCourse(courseDTO, imageFile);
@@ -68,7 +88,7 @@ public class CourseRestController {
             }
             return ResponseEntity.ok(Map.of("message", "Tạo khóa học thành công"));
         } catch (Exception e) {
-            e.printStackTrace(); // xem lỗi cụ thể ở terminal
+            e.printStackTrace();
             return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                     .body(Map.of("message", "Lỗi: " + e.getMessage()));
         }
@@ -80,24 +100,17 @@ public class CourseRestController {
             @RequestParam(required = false) Integer categoryId,
             @RequestParam(required = false) String status
     ) {
-        Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
+        CustomUserDetails currentUser = getCurrentUser();
         Integer instructorId = null;
 
-        if (principal instanceof CustomUserDetails customUser) {
-            boolean isInstructor = customUser.getAuthorities().stream()
-                    .anyMatch(a -> a.getAuthority().equals("ROLE_instructor"));
-            if (isInstructor) {
-                instructorId = customUser.getId(); // ✅ lấy đúng userId
-            }
-            System.out.println("🔍 User ID: " + customUser.getId());
+        if (currentUser != null && currentUser.hasRole(ROLE_INSTRUCTOR)) {
+            instructorId = currentUser.getId();
         }
-
-        System.out.printf("getCourses with: categoryId=%s, instructorId=%s, status=%s%n",
-                categoryId, instructorId, status);
 
         List<Course> courses = courseService.getCourses(categoryId, instructorId, status);
         return ResponseEntity.ok(courses);
     }
+
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('admin')")
     public ResponseEntity<?> updateCourse(
@@ -108,7 +121,6 @@ public class CourseRestController {
         course.setCourseId(courseId);
 
         boolean updated = courseService.updateCourse(course, imageFile);
-
         if (updated) {
             return ResponseEntity.ok("Course updated successfully");
         } else {
@@ -124,69 +136,38 @@ public class CourseRestController {
             if (deleted) {
                 return ResponseEntity.ok("Course deleted successfully");
             } else {
-                // 🔸 Course tồn tại nhưng không thể xóa do có dữ liệu liên quan
                 return ResponseEntity.status(HttpStatus.CONFLICT)
-                    .body("Cannot delete course. Please remove all related videos and enrollments first.");
+                        .body("Cannot delete course. Please remove all related videos and enrollments first.");
             }
         } catch (Exception e) {
-            // 🔸 Lỗi không mong muốn khác
-            System.err.println("❌ Unexpected error in deleteCourse controller: " + e.getMessage());
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body("An unexpected error occurred while deleting the course.");
+                    .body("An unexpected error occurred while deleting the course.");
         }
     }
 
-    // Get course by ID - accessible to enrolled students, instructors, and admins
     @GetMapping("/{id}")
     @PreAuthorize("hasRole('student') or hasRole('instructor') or hasRole('admin')")
     public ResponseEntity<?> getCourseById(@PathVariable("id") Integer courseId) {
         try {
             Optional<Course> courseOpt = courseService.getCourseById(courseId);
-            
             if (courseOpt.isEmpty()) {
                 return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                    .body(Map.of("message", "Khóa học không tồn tại"));
+                        .body(Map.of("message", "Khóa học không tồn tại"));
             }
-            
+
             Course course = courseOpt.get();
-            
-            // Check if user has access to this course
-            Object principal = SecurityContextHolder.getContext().getAuthentication().getPrincipal();
-            if (principal instanceof CustomUserDetails customUser) {
-                boolean isAdmin = customUser.getAuthorities().stream()
-                    .anyMatch(a -> a.getAuthority().equals("ROLE_admin"));
-                boolean isInstructor = customUser.getAuthorities().stream()
-                    .anyMatch(a -> a.getAuthority().equals("ROLE_instructor"));
-                boolean isStudent = customUser.getAuthorities().stream()
-                    .anyMatch(a -> a.getAuthority().equals("ROLE_student"));
-                
-                // Admin can access any course
-                if (isAdmin) {
-                    return ResponseEntity.ok(course);
-                }
-                
-                // Instructor can access their own courses
-                if (isInstructor && course.getInstructorId().equals(customUser.getId())) {
-                    return ResponseEntity.ok(course);
-                }
-                
-                // Student needs to be enrolled (we'll implement enrollment check later)
-                // For now, allow students to access any course
-                if (isStudent) {
-                    // TODO: Check if student is enrolled in this course
-                    return ResponseEntity.ok(course);
-                }
+            CustomUserDetails user = getCurrentUser();
+
+            if (user == null || !canAccessCourse(user, course)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(Map.of("message", "Bạn không có quyền truy cập khóa học này"));
             }
-            
-            return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(Map.of("message", "Bạn không có quyền truy cập khóa học này"));
-                
+
+            return ResponseEntity.ok(course);
         } catch (Exception e) {
-            System.err.println("❌ Error getting course: " + e.getMessage());
             e.printStackTrace();
             return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(Map.of("message", "Lỗi server khi lấy thông tin khóa học"));
+                    .body(Map.of("message", "Lỗi server khi lấy thông tin khóa học"));
         }
     }
-
 }
