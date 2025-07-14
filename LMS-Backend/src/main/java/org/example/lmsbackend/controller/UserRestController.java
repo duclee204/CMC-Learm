@@ -26,6 +26,22 @@ public class UserRestController {
     private final JwtTokenUtil jwtTokenUtil;
     private final FileStorageService fileStorageService;
 
+<<<<<<< Updated upstream
+=======
+<<<<<<< HEAD
+    @Autowired
+    private UserService userService;
+
+    @Autowired
+    private UserMapper userMapper;
+
+    @Autowired
+    private JwtTokenUtil jwtTokenUtil;
+    @Autowired
+    private FileStorageService fileStorageService;
+
+=======
+>>>>>>> Stashed changes
     public UserRestController(
             UserService userService,
             UserMapper userMapper,
@@ -37,6 +53,10 @@ public class UserRestController {
         this.jwtTokenUtil = jwtTokenUtil;
         this.fileStorageService = fileStorageService;
     }
+<<<<<<< Updated upstream
+=======
+>>>>>>> 9e3a6676856ee5217e90f5eaab3b196718740b01
+>>>>>>> Stashed changes
     // ✅ API đăng nhập
     @PostMapping("/login")
     public ResponseEntity<?> login(@RequestBody UserDTO userDTO) {

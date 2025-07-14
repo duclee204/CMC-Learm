@@ -100,7 +100,6 @@ class UserServiceTest {
         dto.setUsername("inst");
         dto.setRole("instructor");
         dto.setCvUrl(null);
-
         assertThrows(RuntimeException.class, () -> userService.register(dto));
     }
 

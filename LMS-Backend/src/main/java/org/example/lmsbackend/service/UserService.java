@@ -17,12 +17,22 @@ public class UserService {
     private final PasswordEncoder passwordEncoder;
     private final EmailService emailService;
 
+<<<<<<< Updated upstream
     public UserService(UserMapper userMapper, PasswordEncoder passwordEncoder, EmailService emailService) {
         this.userMapper = userMapper;
         this.passwordEncoder = passwordEncoder;
         this.emailService = emailService;
     }
 
+=======
+    @Autowired
+    private PasswordEncoder passwordEncoder;
+
+    @Autowired
+    private EmailService emailService;
+
+    // ✅ Xử lý đăng nhập
+>>>>>>> Stashed changes
     public boolean login(UserDTO userDTO) {
         User user = userMapper.findByUsername(userDTO.getUsername());
         if (user == null) return false;
